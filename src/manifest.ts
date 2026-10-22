@@ -45,10 +45,19 @@ export type RemoteType = (typeof REMOTE_TYPES)[number]
 
 export type LocalizedText = Record<string, string>
 
+/**
+ * 模块自述的导航项。顶层是模块的二级导航，`children` 继续下钻；
+ * 空 key 表示模块入口本身（模块页在 `basePath` 上渲染的那一项）。
+ */
 export type ModuleMenu = {
   key: string
   label: LocalizedText
+  children?: ModuleMenu[]
 }
+
+/** 菜单树上限：深度从顶层算 1，条数含各级子项，防止元数据里长出无法渲染的巨型导航。 */
+export const MODULE_MENU_MAX_DEPTH = 3
+export const MODULE_MENU_MAX_ITEMS = 50
 
 /** 门户路径；`read` 时另有公开两路径，分别在 /explore、/mobile/explore 下。 */
 export type ModulePaths = {
@@ -136,17 +145,46 @@ function requireLocalized(raw: unknown, where: string): LocalizedText {
   return text as LocalizedText
 }
 
-function requireMenus(raw: unknown, id: string): ModuleMenu[] {
+/**
+ * 递归校验菜单树。同一层内 key 不得重复（key 拼成落点路径，同层重名即同一条路径）；
+ * 不同层可以重名，因为路径前缀不同。深度与总条数分别受 MODULE_MENU_MAX_DEPTH / MAX_ITEMS 限制。
+ */
+function requireMenuTree(
+  raw: unknown,
+  id: string,
+  where: string,
+  budget: { items: number },
+  depth: number,
+): ModuleMenu[] {
   if (!Array.isArray(raw)) {
-    fail(`模块 ${id} 的 menus 必须是数组`)
+    fail(`${where} 必须是数组`)
   }
+  if (depth > MODULE_MENU_MAX_DEPTH) {
+    fail(`模块 ${id} 的菜单超过 ${MODULE_MENU_MAX_DEPTH} 层：${where}`)
+  }
+  const keys = new Set<string>()
   return (raw as unknown[]).map((item, index) => {
-    const menu = requireObject(item, `模块 ${id} 的 menus[${index}]`)
+    const at = `${where}[${index}]`
+    const menu = requireObject(item, at)
     const key = menu.key
     if (typeof key !== 'string' || !/^[a-z0-9-]*$/.test(key)) {
-      fail(`模块 ${id} 的 menus[${index}].key 只能是空串或 [a-z0-9-] 片段`)
+      fail(`${at}.key 只能是空串或 [a-z0-9-] 片段`)
     }
-    return { key: key as string, label: requireLocalized(menu.label, `模块 ${id} 的 menus[${index}].label`) }
+    if (keys.has(key)) {
+      fail(`${where} 中 key 重复：${key}`)
+    }
+    keys.add(key)
+
+    budget.items += 1
+    if (budget.items > MODULE_MENU_MAX_ITEMS) {
+      fail(`模块 ${id} 的菜单总条数超过 ${MODULE_MENU_MAX_ITEMS}`)
+    }
+
+    const node: ModuleMenu = { key, label: requireLocalized(menu.label, `${at}.label`) }
+    if (menu.children !== undefined) {
+      node.children = requireMenuTree(menu.children, id, `${at}.children`, budget, depth + 1)
+    }
+    return node
   })
 }
 
@@ -213,7 +251,7 @@ export function validateManifest(raw: unknown, seen: Seen): ModuleManifest {
   const desktop = requirePath(paths.desktop, MODULE_ROUTE_BASES.desktop, id, 'desktop', seen)
   const manage = requirePath(paths.manage, MODULE_ROUTE_BASES.manage, id, 'manage', seen)
   const mobile = requirePath(paths.mobile, MODULE_ROUTE_BASES.mobile, id, 'mobile', seen)
-  const menus = requireMenus(value.menus, id)
+  const menus = requireMenuTree(value.menus, id, `模块 ${id} 的 menus`, { items: 0 }, 1)
 
   let publicDesktop: string | undefined
   let publicMobile: string | undefined

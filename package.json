@@ -1,6 +1,6 @@
 {
   "name": "@servumi/module-contract",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Servumi 门户模块元数据契约：module.json 的类型、常量与校验器，以及构建期守卫插件与门禁 CLI。壳与各 Remote 同源引用，不再复制。",
