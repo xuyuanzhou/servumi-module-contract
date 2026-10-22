@@ -14,6 +14,10 @@
  * 门户接受的 module.json 契约版本；缺失或不支持的版本阻断装配。
  * 3 起 module.json 增加 version / minShellVersion / remote，业务模块前端不再编进壳，
  * 改由注册中心下发远程描述符（见 docs/decisions/0007-portal-federation-runtime.md）。
+ *
+ * 版本号仍为 3，即便 3 之内又删掉了 `menus`：被删的字段是「模块自己怎么排自己的导航」，
+ * 移走后旧产物（仍带 `menus`）照样能被装配，不该被阻断——升版本号的含义是「旧产物必须重发」，
+ * 与本变更相反。校验器不认识的字段一律忽略，因此带与不带 `menus` 的 module.json 都通过。
  */
 export const MODULE_SCHEMA_VERSION = 3
 
@@ -46,20 +50,8 @@ export type RemoteType = (typeof REMOTE_TYPES)[number]
 export type LocalizedText = Record<string, string>
 
 /**
- * 模块自述的导航项。顶层是模块的二级导航，`children` 继续下钻；
- * 空 key 表示模块入口本身（模块页在 `basePath` 上渲染的那一项）。
+ * 门户路径；`read` 时另有公开两路径，分别在 /explore、/mobile/explore 下。
  */
-export type ModuleMenu = {
-  key: string
-  label: LocalizedText
-  children?: ModuleMenu[]
-}
-
-/** 菜单树上限：深度从顶层算 1，条数含各级子项，防止元数据里长出无法渲染的巨型导航。 */
-export const MODULE_MENU_MAX_DEPTH = 3
-export const MODULE_MENU_MAX_ITEMS = 50
-
-/** 门户路径；`read` 时另有公开两路径，分别在 /explore、/mobile/explore 下。 */
 export type ModulePaths = {
   desktop: string
   manage: string
@@ -82,7 +74,6 @@ export type ModuleManifest = {
   audience: ModuleAudience
   publicAccess: PublicAccess
   paths: ModulePaths
-  menus: ModuleMenu[]
 }
 
 /** 跨模块的唯一性累积器；每次装配必须新建一份，不能跨装配复用。 */
@@ -143,49 +134,6 @@ function requireLocalized(raw: unknown, where: string): LocalizedText {
     fail(`${where} 必须含非空的 zh-Hans`)
   }
   return text as LocalizedText
-}
-
-/**
- * 递归校验菜单树。同一层内 key 不得重复（key 拼成落点路径，同层重名即同一条路径）；
- * 不同层可以重名，因为路径前缀不同。深度与总条数分别受 MODULE_MENU_MAX_DEPTH / MAX_ITEMS 限制。
- */
-function requireMenuTree(
-  raw: unknown,
-  id: string,
-  where: string,
-  budget: { items: number },
-  depth: number,
-): ModuleMenu[] {
-  if (!Array.isArray(raw)) {
-    fail(`${where} 必须是数组`)
-  }
-  if (depth > MODULE_MENU_MAX_DEPTH) {
-    fail(`模块 ${id} 的菜单超过 ${MODULE_MENU_MAX_DEPTH} 层：${where}`)
-  }
-  const keys = new Set<string>()
-  return (raw as unknown[]).map((item, index) => {
-    const at = `${where}[${index}]`
-    const menu = requireObject(item, at)
-    const key = menu.key
-    if (typeof key !== 'string' || !/^[a-z0-9-]*$/.test(key)) {
-      fail(`${at}.key 只能是空串或 [a-z0-9-] 片段`)
-    }
-    if (keys.has(key)) {
-      fail(`${where} 中 key 重复：${key}`)
-    }
-    keys.add(key)
-
-    budget.items += 1
-    if (budget.items > MODULE_MENU_MAX_ITEMS) {
-      fail(`模块 ${id} 的菜单总条数超过 ${MODULE_MENU_MAX_ITEMS}`)
-    }
-
-    const node: ModuleMenu = { key, label: requireLocalized(menu.label, `${at}.label`) }
-    if (menu.children !== undefined) {
-      node.children = requireMenuTree(menu.children, id, `${at}.children`, budget, depth + 1)
-    }
-    return node
-  })
 }
 
 /** 取一条路径并登记，路径必须等于 base/id 且全局唯一。 */
@@ -251,7 +199,6 @@ export function validateManifest(raw: unknown, seen: Seen): ModuleManifest {
   const desktop = requirePath(paths.desktop, MODULE_ROUTE_BASES.desktop, id, 'desktop', seen)
   const manage = requirePath(paths.manage, MODULE_ROUTE_BASES.manage, id, 'manage', seen)
   const mobile = requirePath(paths.mobile, MODULE_ROUTE_BASES.mobile, id, 'mobile', seen)
-  const menus = requireMenuTree(value.menus, id, `模块 ${id} 的 menus`, { items: 0 }, 1)
 
   let publicDesktop: string | undefined
   let publicMobile: string | undefined
@@ -275,7 +222,6 @@ export function validateManifest(raw: unknown, seen: Seen): ModuleManifest {
     audience: audience as ModuleAudience,
     publicAccess,
     paths: { desktop, manage, mobile, publicDesktop, publicMobile },
-    menus,
   }
 }
 

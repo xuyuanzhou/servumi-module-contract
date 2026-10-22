@@ -46,7 +46,7 @@ export default defineConfig({
 
 ```bash
 npm run build && npm test          # 本地校验
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.1.2 && git push origin v0.1.2
 ```
 
 消费仓以 npm 的 git 依赖 + semver 解析引用：
