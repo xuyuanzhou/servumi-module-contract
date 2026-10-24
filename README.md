@@ -37,7 +37,8 @@ export default defineConfig({
 }
 ```
 
-插件在构建期校验 `src/module.json` 并把**原样** JSON 发到产物根 `module.json`；dev server 在
+插件在构建期从 `package.json` 的 `servumiModule` 推导模块自述（路径、接口前缀、公开权限、Remote 地址与
+槽位按 id 与 `src/<端>/` 补齐），校验后把**原样** JSON 发到产物根 `module.json`；dev server 在
 `/module.json` 补同一份内容。校验失败直接阻断构建。
 
 ## 发布与消费（公有 git 仓 + semver 标签）
