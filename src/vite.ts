@@ -10,6 +10,7 @@
 import { readFileSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
 import { assertRemoteBinding, newSeen, validateManifest } from './manifest.js'
+import { assertPageDirectories } from './pages.js'
 
 const DEFAULT_MANIFEST_PATH = 'src/module.json'
 const DEFAULT_VITE_CONFIG_PATH = 'vite.config.ts'
@@ -51,16 +52,27 @@ export function readModuleManifest(manifestPath: string = DEFAULT_MANIFEST_PATH)
 export function resolveFederationName(configPath: string = DEFAULT_VITE_CONFIG_PATH): string {
   const source = readFileSync(fromCwd(configPath), 'utf8')
   const match = FEDERATION_NAME_PATTERN.exec(source)
-  if (!match) {
-    throw new Error('无法从 vite.config.ts 解析 federationName，确认它仍以字面量常量声明')
+  if (match) {
+    return match[1]
   }
-  return match[1]
+  const manifest = readModuleManifest()
+  const value = typeof manifest === 'object' && manifest !== null ? (manifest as Record<string, unknown>) : null
+  const remote = value ? value.remote : null
+  const remoteValue = typeof remote === 'object' && remote !== null ? (remote as Record<string, unknown>) : null
+  const scope =
+    remoteValue && typeof remoteValue.scope === 'string' && remoteValue.scope.trim() !== ''
+      ? remoteValue.scope
+      : null
+  if (scope) {
+    return scope
+  }
+  throw new Error('无法从 vite.config.ts 或 module.json 解析 federationName')
 }
 
 /**
- * Vite 插件：构建期校验本仓 module.json，并把这份自述原样发到产物根。
+ * Vite 插件：构建期校验本仓 module.json 与端内页面目录，并把这份自述原样发到产物根。
  *
- * 校验失败直接阻断构建，避免元数据漂了却照常发版。发出的是**原样** JSON，不是校验后的
+ * 校验失败直接阻断构建，避免元数据或页面登记漂了却照常发版。发出的是**原样** JSON，不是校验后的
  * 重建对象：注册中心还要从产物根取 version / minShellVersion / remote，重建会把这些字段丢掉。
  *
  * emit 出去是为了让模块自述随产物一起发布：注册中心按 <产物根>/module.json 取产品元数据，
@@ -72,6 +84,7 @@ export function moduleGuard({ federationName, manifestPath }: ModuleGuardOptions
     const raw = readModuleManifest(manifestPath)
     validateManifest(raw, newSeen())
     assertRemoteBinding(raw, federationName)
+    assertPageDirectories()
     return raw
   }
 

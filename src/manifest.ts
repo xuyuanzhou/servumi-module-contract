@@ -18,6 +18,7 @@
  * 版本号仍为 3，即便 3 之内又删掉了 `menus`：被删的字段是「模块自己怎么排自己的导航」，
  * 移走后旧产物（仍带 `menus`）照样能被装配，不该被阻断——升版本号的含义是「旧产物必须重发」，
  * 与本变更相反。校验器不认识的字段一律忽略，因此带与不带 `menus` 的 module.json 都通过。
+ * 后来新增的可选字段 `slots` 同理：旧产物没有它，按「三端都有」兼容，故也不升版本号。
  */
 export const MODULE_SCHEMA_VERSION = 3
 
@@ -74,6 +75,13 @@ export type ModuleManifest = {
   audience: ModuleAudience
   publicAccess: PublicAccess
   paths: ModulePaths
+  /**
+   * 本模块真有哪几端，由构建期按 `src/<端>/index.ts` 在不在推导，用来收窄 `paths` 给出的可挂点：
+   * 只登记管理端的模块不该出现在使用端首页，点了也只会落到一个渲染不出的落点。
+   *
+   * 省缺表示「未推导」，一律按「都有」处理——旧产物没有这个字段，不能因此从各端消失。
+   */
+  slots?: PortalRenderSlot[]
 }
 
 /** 跨模块的唯一性累积器；每次装配必须新建一份，不能跨装配复用。 */
@@ -129,9 +137,9 @@ function requireEnum<T extends readonly string[]>(raw: unknown, allowed: T, wher
 
 function requireLocalized(raw: unknown, where: string): LocalizedText {
   const text = requireObject(raw, where)
-  const zh = text['zh-Hans']
-  if (typeof zh !== 'string' || zh.trim() === '') {
-    fail(`${where} 必须含非空的 zh-Hans`)
+  const hasText = Object.values(text).some((value) => typeof value === 'string' && value.trim() !== '')
+  if (!hasText) {
+    fail(`${where} 必须至少含一条非空译文`)
   }
   return text as LocalizedText
 }
@@ -148,6 +156,28 @@ function requirePath(raw: unknown, base: string, id: string, label: string, seen
   }
   seen.paths.add(path)
   return path
+}
+
+/**
+ * 校验 `slots`：这是「本模块真有哪几端」的正名，故每一项都必须是已知槽位、不许重复，也不许为空数组
+ * （空数组等于「哪儿都不占」，而装配要求至少有一个可渲染槽位，这种自述只会在运行期变成白页）。
+ */
+function requireSlots(raw: unknown, where: string): PortalRenderSlot[] {
+  if (!Array.isArray(raw)) {
+    fail(`${where} 必须是数组`)
+  }
+  if (raw.length === 0) {
+    fail(`${where} 不能为空：模块至少要占一个端`)
+  }
+  const seen = new Set<string>()
+  for (const item of raw) {
+    const slot = requireEnum(item, PORTAL_RENDER_SLOTS, where)
+    if (seen.has(slot)) {
+      fail(`${where} 里 ${slot} 重复`)
+    }
+    seen.add(slot)
+  }
+  return raw as PortalRenderSlot[]
 }
 
 /** 校验一个 module.json 原文；失败直接抛错，可用于构建期阻断。 */
@@ -200,6 +230,8 @@ export function validateManifest(raw: unknown, seen: Seen): ModuleManifest {
   const manage = requirePath(paths.manage, MODULE_ROUTE_BASES.manage, id, 'manage', seen)
   const mobile = requirePath(paths.mobile, MODULE_ROUTE_BASES.mobile, id, 'mobile', seen)
 
+  const slots = value.slots === undefined ? undefined : requireSlots(value.slots, `模块 ${id} 的 slots`)
+
   let publicDesktop: string | undefined
   let publicMobile: string | undefined
   if (publicAccess === 'read') {
@@ -222,6 +254,7 @@ export function validateManifest(raw: unknown, seen: Seen): ModuleManifest {
     audience: audience as ModuleAudience,
     publicAccess,
     paths: { desktop, manage, mobile, publicDesktop, publicMobile },
+    slots,
   }
 }
 

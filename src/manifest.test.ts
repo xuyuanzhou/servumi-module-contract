@@ -1,19 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import {
-  assertRemoteBinding,
-  MODULE_SCHEMA_VERSION,
-  newSeen,
-  validateManifest,
-  validateManifests,
-} from './manifest.js'
+import { assertRemoteBinding, MODULE_SCHEMA_VERSION, newSeen, validateManifest, validateManifests } from './manifest.js'
 
 function baseManifest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     schemaVersion: MODULE_SCHEMA_VERSION,
     id: 'demo',
     domain: 'learning',
-    title: { 'zh-Hans': '示例' },
-    summary: { 'zh-Hans': '示例模块' },
+    title: { 'zh-cn': '示例' },
+    summary: { 'zh-cn': '示例模块' },
     group: 'learn',
     order: 10,
     apiPrefix: '/api/demo/v1',
@@ -40,6 +34,15 @@ describe('validateManifest', () => {
   it('拒绝与 id 不符的路径', () => {
     const raw = baseManifest({ paths: { desktop: '/desktop/other', manage: '/admin/demo', mobile: '/mobile/demo' } })
     expect(() => validateManifest(raw, newSeen())).toThrow('paths.desktop 必须是 /desktop/demo')
+  })
+
+  it('title 至少含一条非空译文，语言标签不作限定', () => {
+    expect(() => validateManifest(baseManifest({ title: {} }), newSeen())).toThrow('title 必须至少含一条非空译文')
+    expect(() => validateManifest(baseManifest({ title: { 'zh-cn': '   ' } }), newSeen())).toThrow(
+      'title 必须至少含一条非空译文',
+    )
+    const withEnglish = validateManifest(baseManifest({ title: { 'en-us': 'Demo' } }), newSeen())
+    expect(withEnglish.title['en-us']).toBe('Demo')
   })
 
   it('拒绝重复 id', () => {
@@ -78,6 +81,21 @@ describe('validateManifest', () => {
         seen,
       ),
     ).toThrow('order 10 重复')
+  })
+
+  it('slots 可省缺：旧产物没有这个字段，按三端都有兼容', () => {
+    expect(validateManifest(baseManifest(), newSeen()).slots).toBeUndefined()
+  })
+
+  it('slots 收下推导结果，只认已知槽位', () => {
+    expect(validateManifest(baseManifest({ slots: ['manage'] }), newSeen()).slots).toEqual(['manage'])
+    expect(() => validateManifest(baseManifest({ slots: ['admin'] }), newSeen())).toThrow('只能是')
+  })
+
+  it('slots 不许重复，也不许为空', () => {
+    expect(() => validateManifest(baseManifest({ slots: ['manage', 'manage'] }), newSeen())).toThrow('重复')
+    expect(() => validateManifest(baseManifest({ slots: [] }), newSeen())).toThrow('至少要占一个端')
+    expect(() => validateManifest(baseManifest({ slots: 'manage' }), newSeen())).toThrow('必须是数组')
   })
 })
 

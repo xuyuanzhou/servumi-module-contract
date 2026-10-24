@@ -7,7 +7,7 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'coverage', '.history'] },
+  { ignores: ['dist', 'coverage', '.history', '@mf-types'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
