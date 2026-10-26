@@ -50,7 +50,7 @@ describe('readModuleManifest', () => {
     }
 
     expect(manifest.id).toBe('demo-module')
-    expect(manifest.paths.manage).toBe('/admin/demo-module')
+    expect(manifest.paths.manage).toBe('/manage/demo-module')
     expect(manifest.slots).toEqual(['manage'])
   })
 })

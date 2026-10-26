@@ -35,7 +35,7 @@ export const REMOTE_TYPES = ['federation'] as const
  */
 export const MODULE_ROUTE_BASES = {
   desktop: '/desktop',
-  manage: '/admin',
+  manage: '/manage',
   mobile: '/mobile',
   publicDesktop: '/explore',
   publicMobile: '/mobile/explore',

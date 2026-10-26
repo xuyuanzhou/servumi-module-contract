@@ -19,7 +19,7 @@ const DEFAULT_VITE_CONFIG_PATH = 'vite.config.ts'
 const FEDERATION_NAME_PATTERN = /const\s+federationName\s*=\s*["']([^"']+)["']/
 const MODULE_ROUTE_BASES = {
   desktop: '/desktop',
-  manage: '/admin',
+  manage: '/manage',
   mobile: '/mobile',
   publicDesktop: '/explore',
   publicMobile: '/mobile/explore',

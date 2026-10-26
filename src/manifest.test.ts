@@ -14,7 +14,7 @@ function baseManifest(overrides: Record<string, unknown> = {}): Record<string, u
     requireAuth: true,
     audience: 'both',
     publicAccess: 'none',
-    paths: { desktop: '/desktop/demo', manage: '/admin/demo', mobile: '/mobile/demo' },
+    paths: { desktop: '/desktop/demo', manage: '/manage/demo', mobile: '/mobile/demo' },
     version: '0.1.0',
     minShellVersion: '0.1.0',
     remote: { type: 'federation', scope: 'servumi_demo', module: './module' },
@@ -32,7 +32,7 @@ describe('validateManifest', () => {
   })
 
   it('拒绝与 id 不符的路径', () => {
-    const raw = baseManifest({ paths: { desktop: '/desktop/other', manage: '/admin/demo', mobile: '/mobile/demo' } })
+    const raw = baseManifest({ paths: { desktop: '/desktop/other', manage: '/manage/demo', mobile: '/mobile/demo' } })
     expect(() => validateManifest(raw, newSeen())).toThrow('paths.desktop 必须是 /desktop/demo')
   })
 
@@ -55,7 +55,7 @@ describe('validateManifest', () => {
     const raw = baseManifest({
       paths: {
         desktop: '/desktop/demo',
-        manage: '/admin/demo',
+        manage: '/manage/demo',
         mobile: '/mobile/demo',
         publicDesktop: '/explore/demo',
       },
@@ -75,7 +75,7 @@ describe('validateManifest', () => {
       validateManifest(
         baseManifest({
           id: 'demo2',
-          paths: { desktop: '/desktop/demo2', manage: '/admin/demo2', mobile: '/mobile/demo2' },
+          paths: { desktop: '/desktop/demo2', manage: '/manage/demo2', mobile: '/mobile/demo2' },
           apiPrefix: '/api/demo2/v1',
         }),
         seen,
@@ -107,7 +107,7 @@ describe('validateManifests', () => {
         id: 'demo2',
         order: 20,
         apiPrefix: '/api/demo2/v1',
-        paths: { desktop: '/desktop/demo2', manage: '/admin/demo2', mobile: '/mobile/demo2' },
+        paths: { desktop: '/desktop/demo2', manage: '/manage/demo2', mobile: '/mobile/demo2' },
       }),
     ])
     expect(manifests.map((item) => item.id)).toEqual(['demo', 'demo2'])
